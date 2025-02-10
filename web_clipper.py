@@ -24,6 +24,7 @@ from config import CONFIG  # 添加这行在文件开头
 import re
 from bs4 import BeautifulSoup  # 添加到导入部分
 from fastapi.responses import JSONResponse
+import html2text
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -129,9 +130,12 @@ class WebClipperHandler:
             # 1. 上传到 GitHub Pages
             filename, github_url = self.upload_to_github(str(file_path))
             logger.info(f"📤 GitHub 上传成功: {github_url}")
+
+            # Github URL 转换为 Markdown
+            md_content = self.url2md(github_url)
             
-            # 获取页面内容和标题
-            title, content = await self.get_page_content(github_url)
+            # 2. 获取页面标题
+            title = self.get_page_content_by_md(md_content)
             logger.info(f"📑 页面标题: {title}")
             
             # 如果没有提供原始 URL，则从文件名解析
@@ -139,13 +143,12 @@ class WebClipperHandler:
                 file_info = parse_filename(filename)
                 original_url = file_info['original_url']
             
-            # 2. 生成摘要和标签
-            md_content = self.url2md(github_url, content)
+            # 3. 生成摘要和标签
             summary, tags = self.generate_summary_tags(md_content)
             logger.info(f"📝 摘要: {summary[:100]}...")
             logger.info(f"🏷️ 标签: {', '.join(tags)}")
             
-            # 3. 保存到 Notion
+            # 4. 保存到 Notion
             notion_url = self.save_to_notion({
                 'title': title,
                 'original_url': original_url,
@@ -156,7 +159,7 @@ class WebClipperHandler:
             })
             logger.info(f"📓 Notion 保存成功")
             
-            # 4. 发送 Telegram 通知
+            # 5. 发送 Telegram 通知
             notification = (
                 f"✨ 新的网页剪藏\n\n"
                 f"📑 {title}\n\n"
@@ -217,18 +220,21 @@ class WebClipperHandler:
         
         return filename, github_url
     
-    def url2md(self, url, bs4_content, max_retries=60):
+    def url2md(self, url, max_retries=30):
         """将 URL 转换为 Markdown"""
-        for attempt in range(max_retries):
-            try:
-                md_url = f"https://r.jina.ai/{url}"
-                response = requests.get(md_url)
-                if response.status_code == 200:
-                    md_content = response.text
-                    return md_content
-            except Exception:
-                time.sleep(10)
-        return bs4_content
+        try:
+            for attempt in range(max_retries):
+                try:
+                    md_url = f"https://r.jina.ai/{url}"
+                    response = requests.get(md_url)
+                    if response.status_code == 200:
+                        md_content = response.text
+                        return md_content
+                except Exception:
+                    time.sleep(10)
+        except Exception:
+            md_content = self.get_page_content_by_bs(url)
+            return md_content
 
     def generate_summary_tags(self, content):
         """使用 AI 生成摘要和标签"""
@@ -312,14 +318,15 @@ class WebClipperHandler:
                 logger.error(f"Notion API 响应: {e.response.text}")
             raise
 
-    async def send_telegram_notification(self, message):
-        """发送 Telegram 通知"""
-        await self.telegram_bot.send_message(
-            chat_id=self.config['telegram_chat_id'],
-            text=message
-        )
+    def get_page_content_by_md(self, md_content):
+        """从 markdown 获取标题"""
+        lines = md_content.splitlines()
+        for line in lines:
+            if line.startswith("Title:"):
+                return line.replace("Title:", "").strip()
+        return "未知标题"
 
-    async def get_page_content(self, url, max_retries=60):
+    def get_page_content_by_bs(self, url, max_retries=60):
         """从部署的页面获取标题和内容"""
         for attempt in range(max_retries):
             try:
@@ -340,29 +347,42 @@ class WebClipperHandler:
                                 break
                     
                     # 清理标题
-                    if title:
-                        title = ' '.join(title.split())
-                        title = re.sub(r'\s*[-|]\s*.*$', '', title)
-                    else:
-                        title = os.path.basename(url)
+                    # if title:
+                    #     title = ' '.join(title.split())
+                    #     title = re.sub(r'\s*[-|]\s*.*$', '', title)
+                    # else:
+                    #     title = os.path.basename(url)
                     
                     # 提取正文内容
-                    for script in soup(["script", "style"]):
-                        script.decompose()
+                    # for script in soup(["script", "style"]):
+                    #     script.decompose()
                     
-                    text = soup.get_text()
-                    lines = (line.strip() for line in text.splitlines())
-                    chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-                    text = ' '.join(chunk for chunk in chunks if chunk)
+                    # text = soup.get_text()
+                    # lines = (line.strip() for line in text.splitlines())
+                    # chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+                    # text = ' '.join(chunk for chunk in chunks if chunk)
+
+                    # 提取正文内容
+                    html2markdown = html2text.HTML2Text()
+                    html2markdown.ignore_links = True
+                    html2markdown.ignore_images = True
+                    content = html2markdown.handle(soup.prettify())
                     
-                    return title, text
+                    return f"Title: {title} \n\n {content}"
                     
-                await asyncio.sleep(5)
+                time.sleep(5)
                 
             except Exception:
-                await asyncio.sleep(5)
+                time.sleep(5)
         
         return os.path.basename(url), ""
+
+    async def send_telegram_notification(self, message):
+        """发送 Telegram 通知"""
+        await self.telegram_bot.send_message(
+            chat_id=self.config['telegram_chat_id'],
+            text=message
+        )
 
 @app.on_event("startup")
 async def startup_event():
