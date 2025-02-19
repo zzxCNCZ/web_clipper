@@ -1,17 +1,15 @@
 # Web Clipper Backend
 
-一个强大的网页剪藏后端服务，支持将网页保存到 GitHub Pages 并同步到 Notion 数据库，同时通过 Telegram 发送通知。
+一个网页剪藏后端服务，支持将网页保存到 GitHub Pages 并同步到 Notion 数据库，同时通过 Telegram 发送通知。
 
 ## 特性
 
 - 🚀 支持上传 HTML 文件到 GitHub Pages
 - 📚 自动同步到 Notion 数据库
-- 🤖 使用 AI (GPT) 自动生成摘要和标签
+- 🤖 使用 AI 自动生成摘要和标签
 - 📱 通过 Telegram 发送剪藏通知
 - 🔒 API 密钥认证
-- ⚡ FastAPI 高性能后端
 - 🔄 自动重试机制
-- 📝 详细的日志记录
 
 ## 配置说明
 
@@ -57,7 +55,7 @@ curl -X POST "http://your-instance-url/upload" \
 
 ### 上传接口
 
-- 端点：`/upload`, `/upload/`
+- 端点：`/upload`
 - 方法：POST
 - 认证：Bearer Token
 - 参数：
@@ -83,16 +81,3 @@ curl -X POST "http://your-instance-url/upload" \
 	5. 保存位置-保存到 REST 表单 API-授权令牌： 第二步里面配置的 Bearer Key
 	6. 保存位置-保存到 REST 表单 API-文件字段名称： singlehtmlfile
 	7. 保存位置-保存到 REST 表单 API-网址字段名称： url
-
-## 注意事项
-
-1. 确保 GitHub Pages 已正确配置
-2. Notion 数据库需要包含所有必需字段
-3. Telegram Bot 需要先与用户建立对话
-4. API 密钥需要在请求头中使用 Bearer 认证
-
-## 许可证
-MIT License
-
-## 贡献
-欢迎提交 Issue 和 Pull Request！
