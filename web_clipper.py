@@ -1,7 +1,5 @@
 import os
 import time
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
 import requests
 from github import Github
 import openai
@@ -10,21 +8,17 @@ import telegram
 import logging
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Header, Request, Body
 import uvicorn
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
 import shutil
 from pathlib import Path
 from fastapi.security import APIKeyHeader, HTTPBearer, HTTPAuthorizationCredentials
-from typing import Optional
 import secrets
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from config import CONFIG  # 添加这行在文件开头
-import re
 from bs4 import BeautifulSoup  # 添加到导入部分
-from fastapi.responses import JSONResponse
 import html2text
+from contextlib import asynccontextmanager
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -33,24 +27,46 @@ logger = logging.getLogger(__name__)
 # 设置 httpx 日志级别为 WARNING，隐藏请求日志
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
+# 定义全局变量
+handler = None
+UPLOAD_DIR = Path("uploads")
+
 # 配置限制
 MAX_FILE_SIZE = CONFIG.get('max_file_size', 10 * 1024 * 1024)  # 从配置中获取最大文件大小
-#ALLOWED_EXTENSIONS = {'.html', '.htm'}
 ALLOWED_EXTENSIONS = set(CONFIG.get('allowed_extensions', ['.html', '.htm']))
 API_KEY_NAME = "X-API-Key"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=True)
 
+# 替换原来的 API_KEY_NAME 和 api_key_header
+security = HTTPBearer()
+
+# 添加 lifespan 函数定义
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    应用程序生命周期管理器
+    """
+    # 启动时执行
+    global handler
+    handler = WebClipperHandler(CONFIG)
+    UPLOAD_DIR.mkdir(exist_ok=True)
+    
+    # 如果配置中没有 API key，生成一个
+    if 'api_key' not in CONFIG:
+        CONFIG['api_key'] = secrets.token_urlsafe(32)
+        logger.info(f"Generated new API key: {CONFIG['api_key']}")
+    
+    yield
+    
+    # 关闭时执行的清理代码（如果需要的话）
+    if UPLOAD_DIR.exists():
+        shutil.rmtree(UPLOAD_DIR)
+
 # 创建应用和限速器
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-handler = None
-UPLOAD_DIR = Path("uploads")
-
-# 替换原来的 API_KEY_NAME 和 api_key_header
-security = HTTPBearer()
 
 async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """验证 Bearer 令牌"""
@@ -116,11 +132,22 @@ class WebClipperHandler:
         self.notion_client = Client(auth=config['notion_token'])
         self.telegram_bot = telegram.Bot(token=config['telegram_token'])
         
-        # 配置 OpenAI
-        openai.api_key = config['openai_api_key']
-        if 'openai_base_url' in config:
-            openai.base_url = config['openai_base_url']
-            logger.info(f"使用自定义 OpenAI API URL: {config['openai_base_url']}")
+        # 配置 AI 服务
+        self.ai_provider = config.get('ai_provider', 'openai').lower()
+        
+        if self.ai_provider == 'azure':
+            # Azure OpenAI 配置
+            openai.api_type = "azure"
+            openai.api_key = config['azure_api_key']
+            openai.api_base = config['azure_api_base']
+            openai.api_version = config.get('azure_api_version', '2024-02-15-preview')
+            logger.info(f"使用 Azure OpenAI API: {config['azure_api_base']}")
+        else:
+            # 标准 OpenAI 配置
+            openai.api_key = config['openai_api_key']
+            if 'openai_base_url' in config:
+                openai.base_url = config['openai_base_url']
+                logger.info(f"使用自定义 OpenAI API URL: {config['openai_base_url']}")
 
     async def process_file(self, file_path: Path, original_url: str = ''):
         """处理上传的文件"""
@@ -192,34 +219,85 @@ class WebClipperHandler:
     def upload_to_github(self, html_path):
         """上传 HTML 文件到 GitHub Pages"""
         filename = os.path.basename(html_path)
+        max_retries = 5
+        retry_delay = 3  # 秒
         
         with open(html_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        repo = self.github_client.get_repo(self.config['github_repo'])
-        file_path = f"clips/{filename}"
-        repo.create_file(
-            file_path,
-            f"Add web clip: {filename}",
-            content,
-            branch="main"
-        )
-        
-        github_url = f"https://{self.config['github_pages_domain']}/{self.config['github_repo'].split('/')[1]}/clips/{filename}"
-        
-        # 等待 GitHub Pages 部署
-        max_retries = self.config.get('github_pages_max_retries', 60)
         for attempt in range(max_retries):
             try:
-                response = requests.get(github_url)
-                if response.status_code == 200:
-                    break
-                time.sleep(5)
-            except Exception:
-                time.sleep(5)
-        
-        return filename, github_url
-    
+                repo = self.github_client.get_repo(self.config['github_repo'])
+                file_path = f"clips/{filename}"
+                
+                try:
+                    # 检查文件是否已存在
+                    existing_file = repo.get_contents(file_path)
+                    logger.info(f"文件已存在，更新内容: {file_path}")
+                    repo.update_file(
+                        file_path,
+                        f"Update web clip: {filename}",
+                        content,
+                        existing_file.sha,
+                        branch="main"
+                    )
+                except Exception:
+                    logger.info(f"创建新文件: {file_path}")
+                    repo.create_file(
+                        file_path,
+                        f"Add web clip: {filename}",
+                        content,
+                        branch="main"
+                    )
+                
+                github_url = f"https://{self.config['github_pages_domain']}/{self.config['github_repo'].split('/')[1]}/clips/{filename}"
+                logger.info(f"📑 GitHub URL: {github_url}")
+                
+                # 等待 GitHub Pages 部署
+                max_deploy_retries = self.config.get('github_pages_max_retries', 60)
+                deploy_retry_interval = 5  # 秒
+                
+                logger.info(f"等待 GitHub Pages 部署 (最多 {max_deploy_retries * deploy_retry_interval} 秒)...")
+                start_time = time.time()
+                
+                for deploy_attempt in range(max_deploy_retries):
+                    try:
+                        response = requests.get(
+                            github_url,
+                            timeout=10,
+                            verify=True,
+                            headers={'Cache-Control': 'no-cache'}
+                        )
+                        
+                        if response.status_code == 200:
+                            elapsed_time = time.time() - start_time
+                            logger.info(f"✅ GitHub Pages 部署完成! 耗时: {elapsed_time:.1f} 秒")
+                            return filename, github_url
+                        
+                        if deploy_attempt % 6 == 0:  # 每30秒输出一次等待信息
+                            elapsed_time = time.time() - start_time
+                            logger.info(f"⏳ 正在等待部署... ({elapsed_time:.1f} 秒)")
+                        
+                        time.sleep(deploy_retry_interval)
+                        
+                    except requests.RequestException as e:
+                        if deploy_attempt % 6 == 0:
+                            logger.warning(f"部署检查失败 ({deploy_attempt + 1}/{max_deploy_retries}): {str(e)}")
+                        time.sleep(deploy_retry_interval)
+                        continue
+                
+                logger.warning("⚠️ GitHub Pages 部署超时，但继续处理...")
+                return filename, github_url
+                
+            except Exception as e:
+                logger.warning(f"GitHub 上传尝试 {attempt + 1}/{max_retries} 失败: {str(e)}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    logger.error(f"❌ GitHub 上传最终失败: {str(e)}")
+                    raise
+
     def url2md(self, url, max_retries=30):
         """将 URL 转换为 Markdown"""
         try:
@@ -239,51 +317,85 @@ class WebClipperHandler:
     def generate_summary_tags(self, content):
         """使用 AI 生成摘要和标签"""
         try:
-            client = openai.OpenAI(
-                api_key=self.config['openai_api_key'],
-                base_url=self.config.get('openai_base_url')
-            )
-            
-            model = self.config.get('openai_model', 'gpt-3.5-turbo')
-            
-            response = client.chat.completions.create(
-                model=model,
-                messages=[{
-                    "role": "user",
-                    "content": """请为以下网页(已转换为Markdown格式)内容生成简短摘要和相关标签。 
-                    请严格按照以下格式返回(英文网页请以中文返回)：
-                    摘要：[100字以内的摘要]
-                    标签：tag1，tag2，tag3，tag4，tag5
+            messages = [{
+                "role": "user",
+                "content": """请为以下网页内容生成简短摘要和相关标签。
 
-                    网页(已转换为markdown格式)内容：
-                    """ + content[:5000] + "..."
-                }]
-            )
+要求：
+1. 无论原文是中文还是英文，都必须用中文回复
+2. 摘要控制在100字以内
+3. 生成3-5个中文标签
+4. 严格按照以下格式返回：
 
-            
+摘要：[100字以内的中文摘要]
+标签：tag1，tag2，tag3，tag4，tag5
+
+网页内容：
+""" + content[:5000] + "..."
+            }]
+
+            if self.ai_provider == 'azure':
+                client = openai.AzureOpenAI(
+                    api_key=self.config['azure_api_key'],
+                    api_version=self.config.get('azure_api_version', '2024-02-15-preview'),
+                    azure_endpoint=self.config['azure_api_base']
+                )
+                response = client.chat.completions.create(
+                    model=self.config['azure_deployment_name'],
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=1000
+                )
+            else:
+                client = openai.OpenAI(
+                    api_key=self.config['openai_api_key'],
+                    base_url=self.config.get('openai_base_url')
+                )
+                response = client.chat.completions.create(
+                    model=self.config.get('openai_model', 'gpt-3.5-turbo'),
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=1000
+                )
+
             result = response.choices[0].message.content
             
             try:
+                # 使用更严格的解析逻辑
                 parts = result.split('\n')
-                summary_part = next(p for p in parts if p.startswith('摘要：'))
-                tags_part = next(p for p in parts if p.startswith('标签：'))
+                summary_part = next(p for p in parts if '摘要：' in p)
+                tags_part = next(p for p in parts if '标签：' in p)
                 
-                summary = summary_part.replace('摘要：', '').strip()
-                tags_str = tags_part.replace('标签：', '').strip()
+                summary = summary_part.split('摘要：', 1)[1].strip()
+                tags_str = tags_part.split('标签：', 1)[1].strip()
+                
+                # 处理标签
                 tags = [
-                    tag.strip()[:20]
+                    tag.strip()
                     for tag in tags_str.replace('，', ',').split(',')
-                    if tag.strip()
+                    if tag.strip() and len(tag.strip()) <= 20  # 限制标签长度
                 ]
+                
+                # 确保至少有一个标签
+                if not tags:
+                    tags = ["未分类"]
+                
+                # 记录生成的结果
+                logger.info("AI 生成结果:")
+                logger.info(f"摘要: {summary}")
+                logger.info(f"标签: {', '.join(tags)}")
                 
                 return summary, tags
                 
             except Exception as e:
                 logger.error(f"解析 AI 响应失败: {str(e)}")
+                logger.error(f"AI 原始响应: {result}")
                 return "无法解析摘要", ["未分类"]
             
         except Exception as e:
             logger.error(f"OpenAI API 调用失败: {str(e)}")
+            if hasattr(e, 'response'):
+                logger.error(f"API 响应: {e.response}")
             return "无法生成摘要", ["未分类"]
 
     def save_to_notion(self, data):
@@ -384,20 +496,9 @@ class WebClipperHandler:
             text=message
         )
 
-@app.on_event("startup")
-async def startup_event():
-    """启动时初始化"""
-    global handler
-    from config import CONFIG
-    handler = WebClipperHandler(CONFIG)
-    UPLOAD_DIR.mkdir(exist_ok=True)
-    
-    # 如果配置中没有 API key，生成一个
-    if 'api_key' not in CONFIG:
-        CONFIG['api_key'] = secrets.token_urlsafe(32)
-        logger.info(f"Generated new API key: {CONFIG['api_key']}")
-
-@app.post("/upload/")
+@app.post("/")  # 支持根路径
+@app.post("/upload")  # 支持不带斜杠的 /upload
+@app.post("/upload/")  # 保持原有的 /upload/
 @limiter.limit("10/minute", key_func=get_remote_address)
 async def upload_file(
     request: Request,
@@ -466,4 +567,7 @@ async def upload_file(
 
 def start_server(host="0.0.0.0", port=8000):
     """启动服务器"""
-    uvicorn.run(app, host=host, port=port) 
+    logger.info(f"Starting server on {host}:{port}")
+    logger.info(f"Upload endpoints: /, /upload, /upload/")
+    logger.info(f"API Key required in Bearer token")
+    uvicorn.run(app, host=host, port=port)
