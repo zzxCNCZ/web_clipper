@@ -10,15 +10,15 @@ CONFIG = {
     'telegram_token': 'telegram_token', # 在telegram里面 @bot_father 申请一个bot
     'telegram_chat_id': 'telegram_chat_id', # 按照这个 https://zhuanlan.zhihu.com/p/602213485 拿到 chat id
 
-    'ai_provider': 'azure',  # 或 'openai'
-    'azure_api_key': 'azure_api_key',
-    'azure_api_base': 'azure_api_base',
-    'azure_api_version': 'azure_api_version',  # 可选，默认为最新版本
-    'azure_deployment_name': 'gpt-35-turbo',  # 部署模型的名称
+    'ai_provider': 'openai',  # 或 'azure'
     'openai_api_key': 'openai_api_key',  #  OpenAI API key
     'openai_base_url': 'https://api.openai.com/v1',  # 如果需要第三方gpt代理，填到这，否则请不要修改
     'openai_model': 'gpt-4o-mini',  # 模型配置
     'openai_max_retries': 3,          # gpt最大重试次数
+    'azure_api_key': 'azure_api_key',
+    'azure_api_base': 'azure_api_base',
+    'azure_api_version': 'azure_api_version',  # 可选，默认为最新版本
+    'azure_deployment_name': 'azure_deployment_name',  # 部署模型的名称
 
     'api_key': '123456',  # singlefile直接上传文件到 restful api 的 Bearer Key
     'max_file_size': 30 * 1024 * 1024,  # 30MB 最大文件上传尺寸
