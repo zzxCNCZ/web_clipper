@@ -15,45 +15,11 @@
 
 ## 安装
 
-1. 克隆仓库：
+1. 克隆仓库
 
-```bash
-git clone https://github.com/yourusername/web-clipper-backend.git
-cd web-clipper-backend
-```
+2. 安装依赖
 
-2. 安装依赖：
-
-```bash
-pip install -r requirements.txt
-```
-3. 配置服务：
-
-复制 `config.example.py` 到 `config.py` 并填写配置：
-
-```python
-CONFIG = {
-'github_repo': 'username/repo', # GitHub 仓库
-'github_token': 'your-github-token', # GitHub 访问令牌
-'github_pages_domain': 'https://username.github.io', # GitHub Pages 域名
-'notion_database_id': 'your-database-id', # Notion 数据库 ID
-'notion_token': 'your-notion-token', # Notion 集成令牌
-'telegram_token': 'your-telegram-bot-token', # Telegram Bot 令牌
-'telegram_chat_id': 'your-chat-id', # Telegram 聊天 ID
-'api_key': 'your-api-key', # API 访问密钥
-'port': 8000, # 服务端口
-# AI 服务配置（二选一）
-# OpenAI 配置
-'ai_provider': 'openai',
-'openai_api_key': 'your-openai-key',
-'openai_model': 'gpt-3.5-turbo',
-# 或 Azure OpenAI 配置
-'ai_provider': 'azure',
-'azure_api_key': 'your-azure-key',
-'azure_api_base': 'https://your-resource.openai.azure.com/',
-'azure_deployment_name': 'your-deployment-name',
-}
-```
+3. 配置服务：编辑 `config.py` 并填写配置
 
 ## 配置说明
 
@@ -89,9 +55,9 @@ python web_clipper.py
 2. 发送请求：
 
 ```bash
-curl -X POST "http://localhost:8000/upload" \
+curl -X POST "http://example:65331/upload" \
      -H "Authorization: Bearer your-api-key" \
-     -F "file=@webpage.html" \
+     -F "singlehtmlfile=@webpage.html" \
      -F "url=https://original-url.com"
 ```
 
@@ -99,11 +65,11 @@ curl -X POST "http://localhost:8000/upload" \
 
 ### 上传接口
 
-- 端点：`/`, `/upload`, `/upload/`
+- 端点：`/upload`, `/upload/`
 - 方法：POST
 - 认证：Bearer Token
 - 参数：
-  - file: HTML 文件
+  - singlehtmlfile: HTML 文件
   - url: 原始网页 URL（可选）
 - 响应：
 ```json
