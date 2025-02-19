@@ -45,17 +45,16 @@
 3. 获取聊天 ID
 
 ## 使用方法
-
 1. 启动服务：
 
 ```bash
-python web_clipper.py
+python main.py
 ```
 
 2. 发送请求：
 
 ```bash
-curl -X POST "http://example:65331/upload" \
+curl -X POST "http://your-instance-url/upload" \
      -H "Authorization: Bearer your-api-key" \
      -F "singlehtmlfile=@webpage.html" \
      -F "url=https://original-url.com"
@@ -64,13 +63,12 @@ curl -X POST "http://example:65331/upload" \
 ## API 文档
 
 ### 上传接口
-
 - 端点：`/upload`, `/upload/`
 - 方法：POST
 - 认证：Bearer Token
 - 参数：
   - singlehtmlfile: HTML 文件
-  - url: 原始网页 URL（可选）
+  - url: 原始网页 URL
 - 响应：
 ```json
 {
@@ -91,10 +89,8 @@ curl -X POST "http://example:65331/upload" \
 	6. 保存位置-保存到 REST 表单 API-文件字段名称： singlehtmlfile
 	7. 保存位置-保存到 REST 表单 API-网址字段名称： url
 3. 保存
-4. [Notion 模板](https://www.notion.so/cuiplus/19f32fd5f34e805a9001f2e38fc4ac74?v=19f32fd5f34e810eb20f000c0956c3b9&pvs=4)
 
 ## 注意事项
-
 1. 确保 GitHub Pages 已正确配置
 2. Notion 数据库需要包含所有必需字段
 3. Telegram Bot 需要先与用户建立对话
@@ -108,7 +104,6 @@ curl -X POST "http://example:65331/upload" \
 - AI 生成失败会使用默认值
 
 ## 日志
-
 服务会记录详细的操作日志，包括：
 - 上传进度
 - GitHub Pages 部署状态
@@ -117,9 +112,7 @@ curl -X POST "http://example:65331/upload" \
 - Telegram 通知发送
 
 ## 许可证
-
 MIT License
 
 ## 贡献
-
 欢迎提交 Issue 和 Pull Request！
