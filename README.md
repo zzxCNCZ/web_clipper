@@ -17,7 +17,8 @@
 
 ![3294e5d991e4c0a060bc4af5d212b159e6a53863 (1)](https://github.com/user-attachments/assets/ef89bf3a-3f7b-402c-b883-03c2cc66f170)
 
-![3294e5d991e4c0a060bc4af5d212b159e6a53863 (1)](https://github.com/user-attachments/assets/01edde37-5937-47e9-b0a0-9c1091df60ca)
+![c02394e52fea94b4b8bb8d9032ffa0f31617ad26 (1)](https://github.com/user-attachments/assets/772edbbf-54f3-466e-bf0f-caefe70a19e9)
+
 
 ## 配置说明
 
