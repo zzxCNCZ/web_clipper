@@ -1,4 +1,4 @@
-# Web Clipper Backend
+![789d062a91a4a96ae435a4b0b679598314c836b5](https://github.com/user-attachments/assets/21d6ccd1-e45f-43a5-a486-46654eab46cd)# Web Clipper Backend
 
 一个网页剪藏后端服务，支持将网页保存到 GitHub Pages 并同步到 Notion 数据库，同时通过 Telegram 发送通知。
 
@@ -10,6 +10,14 @@
 - 📱 通过 Telegram 发送剪藏通知
 - 🔒 API 密钥认证
 - 🔄 自动重试机制
+
+## Screenshots
+
+![789d062a91a4a96ae435a4b0b679598314c836b5](https://github.com/user-attachments/assets/2dbdc209-f80c-46b5-964e-532f5484829f)
+
+![3294e5d991e4c0a060bc4af5d212b159e6a53863 (1)](https://github.com/user-attachments/assets/ef89bf3a-3f7b-402c-b883-03c2cc66f170)
+
+![3294e5d991e4c0a060bc4af5d212b159e6a53863 (1)](https://github.com/user-attachments/assets/01edde37-5937-47e9-b0a0-9c1091df60ca)
 
 ## 配置说明
 
