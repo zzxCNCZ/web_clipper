@@ -114,6 +114,7 @@ class WebClipperHandler:
         self.config = config
         self.github_client = Github(config['github_token'])
         self.notion_client = Client(auth=config['notion_token'])
+        self.blog_nation_client = Client(auth=config['notion_token'])
         self.telegram_bot = telegram.Bot(token=config['telegram_token'])
         
         # 配置 OpenAI
@@ -309,6 +310,49 @@ class WebClipperHandler:
                 parent={"database_id": self.config['notion_database_id']},
                 properties=properties
             )
+
+            blog_notion_properties = {
+                "title": {"title": [{"text": {"content": data['title']}}]},
+                "type": {"select": {"name": "Post"}},
+                "summary": {"rich_text": [{"text": {"content": data['summary']}}]},
+                # "status": {"select": {"name": "Draft"}},
+                "status": {"select": {"name": "Published"}},
+                "category": {"select": {"name": "技术分享"}},
+                "tags": {"multi_select": [{"name": tag} for tag in tags if tag.strip()]},
+                "slug": {"rich_text": [{"text": {"content": str(int(data['created_at']))}}]},
+                "date": {"date": {"start": current_time}}
+            }
+            
+            blog_notion_children = [
+                {
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {"rich_text": [{"type": "text", "text": {"content": data['summary'], "link": {"url": data['snapshot_url']}}}]},
+                },
+                {
+                    "object": "block",
+                    "type": "embed",
+                    "embed": {"url": data['snapshot_url']},
+                },
+                # 文章原始超链接
+                {
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {
+                        "rich_text": [
+                            {"type": "text", "text": {"content": "原始链接", "link": {"url": data['original_url']}}}
+                        ]
+                    }
+                }
+            ]
+
+            # 插入到博客数据库
+            blog_nation_response = self.blog_nation_client.pages.create(
+                parent={"database_id": self.config['blog_notion_database_id']},
+                properties=blog_notion_properties,
+                children=blog_notion_children
+            )
+            logger.info(f"博客数据库插入成功: {blog_nation_response['url']}")
             
             return response['url']
             

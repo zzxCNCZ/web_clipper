@@ -90,3 +90,6 @@ curl -X POST "http://your-instance-url/upload" \
 	5. 保存位置-保存到 REST 表单 API-授权令牌： 第二步里面配置的 Bearer Key
 	6. 保存位置-保存到 REST 表单 API-文件字段名称： singlehtmlfile
 	7. 保存位置-保存到 REST 表单 API-网址字段名称： url
+
+## 一键部署当前浏览器页面到博客(NotionNext blog)
+[One-Key-Blog.md](./One-Key-Blog.md)
