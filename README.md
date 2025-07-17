@@ -1,15 +1,22 @@
-# Web Clipper Backend
+# one key blog
 
-一个网页剪藏后端服务，支持将网页保存到 GitHub Pages 并同步到 Notion 数据库，同时通过 Telegram 发送通知。
+一个一键存档当前页面到博客的工具，支持将网页保存到 GitHub Pages 并同步到 Notion 数据库，并通过 NotionNext 博客模板部署到Vercel，同时通过 Telegram 发送 存档成功通知。
 
 ## 特性
 
 - 🚀 支持上传 HTML 文件到 GitHub Pages
-- 📚 自动同步到 Notion 数据库
+- 📚 自动同步到 Notion 数据库, （使用NotionNext 博客模板）
 - 🤖 使用 AI 自动生成摘要和标签
 - 📱 通过 Telegram 发送剪藏通知
 - 🔒 API 密钥认证
 - 🔄 自动重试机制
+
+## Web Clipper Backend  
+> 修改自 https://github.com/goxofy/web_clipper, 添加容器化部署配置。
+
+[fork from] https://github.com/goxofy/web_clipper
+
+
 
 ## Screenshots
 
