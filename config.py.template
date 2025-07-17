@@ -1,6 +1,6 @@
 CONFIG = {
     'host': '0.0.0.0',  # 服务器监听地址
-    'port': 65331,       # 服务器端口
+    'port': 65330,       # 服务器端口
 
     'github_repo': 'your_github_name/your_github_repo', # 开一个repo，可以private，填入你的github用户名和repo名称
     'github_token': 'your_github_token',  # 开一个 token，需要授权到上面那个repo的权限

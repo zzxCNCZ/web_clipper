@@ -4,11 +4,10 @@ services:
   server:
     container_name: web-clipper-server
     image: web-clipper-server
-    network_mode: 'host'
+    network_mode: host
     build:
-      context: ../web_clipper
+      context: ../
     volumes:
-      - ./uploads:/app/uploads/
       - ./config.py:/app/config.py
         #ports:
         #- 65330:65330

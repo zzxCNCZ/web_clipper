@@ -114,7 +114,6 @@ class WebClipperHandler:
         self.config = config
         self.github_client = Github(config['github_token'])
         self.notion_client = Client(auth=config['notion_token'])
-        self.blog_nation_client = Client(auth=config['notion_token'])
         self.telegram_bot = telegram.Bot(token=config['telegram_token'])
         
         # 配置 OpenAI
@@ -297,19 +296,19 @@ class WebClipperHandler:
             current_time = time.strftime('%Y-%m-%dT%H:%M:%S.000Z', 
                                        time.gmtime(data['created_at']))
             
-            properties = {
-                "Title": {"title": [{"text": {"content": data['title']}}]},
-                "OriginalURL": {"url": data['original_url'] if data['original_url'] else None},
-                "SnapshotURL": {"url": data['snapshot_url']},
-                "Summary": {"rich_text": [{"text": {"content": data['summary']}}]},
-                "Tags": {"multi_select": [{"name": tag} for tag in tags if tag.strip()]},
-                "Created": {"date": {"start": current_time}}
-            }
+            # properties = {
+            #     "Title": {"title": [{"text": {"content": data['title']}}]},
+            #     "OriginalURL": {"url": data['original_url'] if data['original_url'] else None},
+            #     "SnapshotURL": {"url": data['snapshot_url']},
+            #     "Summary": {"rich_text": [{"text": {"content": data['summary']}}]},
+            #     "Tags": {"multi_select": [{"name": tag} for tag in tags if tag.strip()]},
+            #     "Created": {"date": {"start": current_time}}
+            # }
             
-            response = self.notion_client.pages.create(
-                parent={"database_id": self.config['notion_database_id']},
-                properties=properties
-            )
+            # response = self.notion_client.pages.create(
+            #     parent={"database_id": self.config['notion_database_id']},
+            #     properties=properties
+            # )
 
             blog_notion_properties = {
                 "title": {"title": [{"text": {"content": data['title']}}]},
@@ -347,14 +346,14 @@ class WebClipperHandler:
             ]
 
             # 插入到博客数据库
-            blog_nation_response = self.blog_nation_client.pages.create(
-                parent={"database_id": self.config['blog_notion_database_id']},
+            blog_nation_response = self.notion_client.pages.create(
+                parent={"database_id": self.config['notion_database_id']},
                 properties=blog_notion_properties,
                 children=blog_notion_children
             )
             logger.info(f"博客数据库插入成功: {blog_nation_response['url']}")
             
-            return response['url']
+            return blog_nation_response['url']
             
         except Exception as e:
             logger.error(f"保存到 Notion 失败: {str(e)}")
