@@ -3,3 +3,5 @@ uploads
 config.py
 
 __pycache__
+
+docker/config.py
