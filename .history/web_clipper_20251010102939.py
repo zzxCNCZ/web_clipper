@@ -294,8 +294,7 @@ class WebClipperHandler:
             cover = {
                 "type": "external",
                 "external": {
-                    # "url": data['snapshot_url']
-                     "url": "https://img.paulzzh.com/touhou/random"
+                    "url": data['snapshot_url']
                 }
             }
 

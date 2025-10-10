@@ -291,20 +291,12 @@ class WebClipperHandler:
                     }
                 }
             ]
-            cover = {
-                "type": "external",
-                "external": {
-                    # "url": data['snapshot_url']
-                     "url": "https://img.paulzzh.com/touhou/random"
-                }
-            }
 
             # 插入到博客数据库
             blog_nation_response = self.notion_client.pages.create(
                 parent={"database_id": self.config['notion_database_id']},
                 properties=blog_notion_properties,
-                children=blog_notion_children,
-                cover=cover
+                children=blog_notion_children
             )
             logger.info(f"博客数据库插入成功: {blog_nation_response['url']}")
             
