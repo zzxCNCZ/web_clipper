@@ -8,7 +8,7 @@ import openai
 from notion_client import Client
 import telegram
 import logging
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Header, Request, Body
+from fastapi import FastAPI, Depends, HTTPException, Request
 import uvicorn
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -17,6 +17,10 @@ from pathlib import Path
 from fastapi.security import APIKeyHeader, HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 import secrets
+from security import verify_token
+from file_handler import verify_file
+from web_clipping import process_file
+from integrations import WebClipperHandler
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -51,63 +55,6 @@ UPLOAD_DIR = Path("uploads")
 
 # 替换原来的 API_KEY_NAME 和 api_key_header
 security = HTTPBearer()
-
-async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """验证 Bearer 令牌"""
-    token = credentials.credentials
-    if token != CONFIG.get('api_key'):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authentication token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return token
-
-def verify_file(file: UploadFile):
-    """验证文件"""
-    # 检查文件扩展名
-    file_ext = Path(file.filename).suffix.lower()
-    if file_ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"File type not allowed. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}"
-        )
-    
-    # 检查文件大小
-    file.file.seek(0, 2)  # 移到文件末尾
-    size = file.file.tell()  # 获取文件大小
-    file.file.seek(0)  # 重置文件指针
-    
-    if size > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=400,
-            detail=f"File too large. Maximum size allowed: {MAX_FILE_SIZE/1024/1024}MB"
-        )
-
-def parse_filename(filename):
-    """从文件名解析URL
-    filename format: {random_prefix}_url.html (其中url中的/被替换为$)
-    """
-    try:
-        # 移除 .html 后缀
-        name_without_ext = filename.rsplit('.', 1)[0]
-        
-        # 移除随机前缀（如果存在）
-        if '_' in name_without_ext:
-            name_without_ext = name_without_ext.split('_', 1)[1]
-        
-        # 恢复URL中的斜杠
-        original_url = name_without_ext.replace('$', '/')
-        
-        logger.info(f"从文件名解析出原始URL: {original_url}")
-        return {
-            'original_url': original_url
-        }
-    except Exception as e:
-        logger.error(f"解析文件名失败: {str(e)}")
-        return {
-            'original_url': ''
-        }
 
 class WebClipperHandler:
     def __init__(self, config):
@@ -433,7 +380,6 @@ async def startup_event():
     global handler
     from config import CONFIG
     handler = WebClipperHandler(CONFIG)
-    UPLOAD_DIR.mkdir(exist_ok=True)
     
     # 如果配置中没有 API key，生成一个
     if 'api_key' not in CONFIG:
