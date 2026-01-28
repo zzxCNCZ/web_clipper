@@ -295,7 +295,8 @@ class WebClipperHandler:
                 "type": "external",
                 "external": {
                     # "url": data['snapshot_url']
-                     "url": "https://img.paulzzh.com/touhou/random"
+                    #  "url": "https://img.paulzzh.com/touhou/random"
+                      "url": "https://unsplash.it/1600/900?random"
                 }
             }
 
