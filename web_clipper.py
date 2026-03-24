@@ -18,7 +18,9 @@ from fastapi.security import APIKeyHeader, HTTPBearer, HTTPAuthorizationCredenti
 from typing import Optional
 import secrets
 from security import verify_token
-from web_clipping import parse_filename
+from file_handler import verify_file
+from web_clipping import process_file
+from integrations import WebClipperHandler
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -57,7 +59,7 @@ security = HTTPBearer()
 class WebClipperHandler:
     def __init__(self, config):
         self.config = config
-        self.github_client = Github(config['github_token'], timeout=60)  # 60秒超时
+        self.github_client = Github(config['github_token'])
         self.notion_client = Client(auth=config['notion_token'])
         self.telegram_bot = telegram.Bot(token=config['telegram_token'])
         
@@ -136,7 +138,6 @@ class WebClipperHandler:
 
     def upload_to_github(self, html_path):
         """上传 HTML 文件到 GitHub Pages"""
-        from github import GithubException
         filename = os.path.basename(html_path)
         
         with open(html_path, 'r', encoding='utf-8') as f:
@@ -144,40 +145,12 @@ class WebClipperHandler:
         
         repo = self.github_client.get_repo(self.config['github_repo'])
         file_path = f"clips/{filename}"
-
-        # 检查文件大小
-        file_size = len(content.encode("utf-8"))
-        file_size_mb = file_size / 1024 / 1024
-        
-        # GitHub Contents API 限制为 1MB，我们给一些缓冲空间
-        if file_size_mb > 0.95:
-            logger.warning(f"⚠️ 文件大小 {file_size_mb:.2f}MB，接近或超过 GitHub API 1MB 限制")
-            logger.warning(f"⚠️ 建议：使用 SingleFile 压缩选项或手动精简 HTML")
-        
-        try:
-            logger.info(f"📤 开始上传文件 ({file_size_mb:.2f}MB): {filename}")
-            repo.create_file(
-                file_path,
-                f"Add web clip: {filename}",
-                content,
-                branch="main"
-            )
-            logger.info(f"✓ 文件上传成功")
-        except GithubException as e:
-            if "too large" in str(e).lower() or "exceeds" in str(e).lower():
-                logger.error(f"✗ 文件过大 ({file_size_mb:.2f}MB)，超过 GitHub API 1MB 限制")
-                raise Exception(f"文件大小 {file_size_mb:.2f}MB 超过限制，请压缩后重试")
-            # 其他异常：可能是网络问题或文件已存在，尝试验证
-            logger.warning(f"create_file 抛出异常：{e}，正在验证文件是否已上传...")
-            try:
-                existing_file = repo.get_contents(file_path, ref="main")
-                logger.info(f"✓ 文件已存在于 GitHub，视为上传成功：{file_path}")
-            except GithubException:
-                logger.error(f"✗ 上传失败且文件不存在")
-                raise e
-        except Exception as e:
-            logger.error(f"✗ 上传失败: {str(e)}")
-            raise
+        repo.create_file(
+            file_path,
+            f"Add web clip: {filename}",
+            content,
+            branch="main"
+        )
         
         github_url = f"https://{self.config['github_pages_domain']}/{self.config['github_repo'].split('/')[1]}/clips/{filename}"
         
