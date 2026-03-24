@@ -21,30 +21,65 @@ class WebClipperHandler:
             openai.base_url = config['openai_base_url']
             logger.info(f"使用自定义 OpenAI API URL: {config['openai_base_url']}")
 
+    def _upload_via_git_data_api(self, repo, file_path, content):
+        """使用 Git Data API 上传大文件，绕过 Contents API 1MB 限制"""
+        import base64
+        branch = "main"
+
+        # 1. 创建 blob（直接传 base64 编码内容，避免 JSON 体过大）
+        encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
+        blob = repo.create_git_blob(encoded, "base64")
+
+        # 2. 获取当前 HEAD commit 的 tree SHA
+        ref = repo.get_git_ref(f"heads/{branch}")
+        base_commit = repo.get_git_commit(ref.object.sha)
+        base_tree_sha = base_commit.tree.sha
+
+        # 3. 创建新 tree，追加/替换目标文件
+        new_tree = repo.create_git_tree(
+            [{"path": file_path, "mode": "100644", "type": "blob", "sha": blob.sha}],
+            base_tree=repo.get_git_tree(base_tree_sha)
+        )
+
+        # 4. 创建 commit
+        new_commit = repo.create_git_commit(
+            f"Add web clip: {file_path.split('/')[-1]}",
+            new_tree,
+            [base_commit]
+        )
+
+        # 5. 更新 HEAD 指针
+        ref.edit(new_commit.sha)
+
     def upload_to_github(self, html_path):
         filename = os.path.basename(html_path)
         with open(html_path, 'r', encoding='utf-8') as f:
             content = f.read()
-        
+
         from github import GithubException
         repo = self.github_client.get_repo(self.config['github_repo'])
         file_path = f"clips/{filename}"
-        try:
-            repo.create_file(
-                file_path,
-                f"Add web clip: {filename}",
-                content,
-                branch="main"
-            )
-        except Exception as e:
-            # 网络超时时，GitHub 服务端可能已成功写入，验证文件是否存在
-            logger.warning(f"create_file 抛出异常：{e}，正在验证文件是否已上传...")
+
+        # 大文件（>1MB）用 Git Data API，小文件用 Contents API
+        file_size = len(content.encode("utf-8"))
+        if file_size > 1 * 1024 * 1024:
+            logger.info(f"文件大小 {file_size // 1024}KB，使用 Git Data API 上传")
+            self._upload_via_git_data_api(repo, file_path, content)
+        else:
             try:
-                repo.get_contents(file_path, ref="main")
-                logger.info(f"文件已存在于 GitHub，视为上传成功：{file_path}")
-            except GithubException:
-                # 文件确实不存在，重新抛出原始异常
-                raise e
+                repo.create_file(
+                    file_path,
+                    f"Add web clip: {filename}",
+                    content,
+                    branch="main"
+                )
+            except Exception as e:
+                logger.warning(f"create_file 抛出异常：{e}，正在验证文件是否已上传...")
+                try:
+                    repo.get_contents(file_path, ref="main")
+                    logger.info(f"文件已存在于 GitHub，视为上传成功：{file_path}")
+                except GithubException:
+                    raise e
         
         github_url = f"https://{self.config['github_pages_domain']}/{self.config['github_repo'].split('/')[1]}/clips/{filename}"
         
