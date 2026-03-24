@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class WebClipperHandler:
     def __init__(self, config):
         self.config = config
-        self.github_client = Github(config['github_token'], timeout=300)  # 5分钟超时，适应大文件上传
+        self.github_client = Github(config['github_token'])
         self.notion_client = Client(auth=config['notion_token'])
         self.telegram_bot = telegram.Bot(token=config['telegram_token'])
         
@@ -26,25 +26,14 @@ class WebClipperHandler:
         with open(html_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        from github import GithubException
         repo = self.github_client.get_repo(self.config['github_repo'])
         file_path = f"clips/{filename}"
-        try:
-            repo.create_file(
-                file_path,
-                f"Add web clip: {filename}",
-                content,
-                branch="main"
-            )
-        except Exception as e:
-            # 网络超时时，GitHub 服务端可能已成功写入，验证文件是否存在
-            logger.warning(f"create_file 抛出异常：{e}，正在验证文件是否已上传...")
-            try:
-                repo.get_contents(file_path, ref="main")
-                logger.info(f"文件已存在于 GitHub，视为上传成功：{file_path}")
-            except GithubException:
-                # 文件确实不存在，重新抛出原始异常
-                raise e
+        repo.create_file(
+            file_path,
+            f"Add web clip: {filename}",
+            content,
+            branch="main"
+        )
         
         github_url = f"https://{self.config['github_pages_domain']}/{self.config['github_repo'].split('/')[1]}/clips/{filename}"
         
