@@ -62,7 +62,12 @@ security = HTTPBearer()
 class WebClipperHandler:
     def __init__(self, config):
         self.config = config
-        self.github_client = Github(config["github_token"])
+        # timeout 增大到 120s 应对大文件上传；retry=None 禁用内置立即重试，改由应用层指数退避重试
+        self.github_client = Github(
+            config["github_token"],
+            timeout=config.get("github_timeout", 120),
+            retry=None,
+        )
         self.notion_client = Client(auth=config["notion_token"])
         self.telegram_bot = telegram.Bot(token=config["telegram_token"])
 
@@ -142,7 +147,7 @@ class WebClipperHandler:
             raise
 
     def upload_to_github(self, html_path):
-        """上传 HTML 文件到 GitHub Pages"""
+        """上传 HTML 文件到 GitHub Pages，带指数退避重试"""
         filename = os.path.basename(html_path)
 
         with open(html_path, "r", encoding="utf-8") as f:
@@ -150,21 +155,44 @@ class WebClipperHandler:
 
         repo = self.github_client.get_repo(self.config["github_repo"])
         file_path = f"clips/{filename}"
-        try:
-            repo.create_file(
-                file_path, f"Add web clip: {filename}", content, branch="main"
-            )
-        except Exception as e:
-            # 网络超时等连接异常时，GitHub 可能已成功写入文件但未能返回响应
-            # 此时检查文件是否已实际存在于仓库，若存在则视为上传成功
-            logger.warning(f"create_file 出现异常: {e}，检查文件是否已存在于 GitHub...")
+
+        max_upload_retries = self.config.get("github_upload_max_retries", 5)
+        last_exception = None
+
+        for attempt in range(1, max_upload_retries + 1):
             try:
-                repo.get_contents(file_path, ref="main")
-                logger.info(f"文件已存在于 GitHub，忽略异常，继续后续流程: {file_path}")
-            except Exception:
-                # 文件确实不存在，重新抛出原始异常
-                logger.error(f"文件在 GitHub 上不存在，上传真实失败: {file_path}")
-                raise e
+                repo.create_file(
+                    file_path, f"Add web clip: {filename}", content, branch="main"
+                )
+                logger.info(f"GitHub 上传成功（第 {attempt} 次尝试）")
+                last_exception = None
+                break
+            except Exception as e:
+                last_exception = e
+                # 超时/连接断开后，GitHub 可能已成功写入但未能返回响应
+                # 先检查文件是否已实际存在，若存在则视为上传成功
+                logger.warning(
+                    f"create_file 第 {attempt}/{max_upload_retries} 次失败: {e}，"
+                    f"检查文件是否已存在于 GitHub..."
+                )
+                try:
+                    repo.get_contents(file_path, ref="main")
+                    logger.info(f"文件已存在于 GitHub，视为上传成功: {file_path}")
+                    last_exception = None
+                    break
+                except Exception:
+                    pass
+
+                if attempt < max_upload_retries:
+                    wait = 2**attempt  # 2, 4, 8, 16 秒
+                    logger.info(f"等待 {wait}s 后重试上传...")
+                    time.sleep(wait)
+
+        if last_exception is not None:
+            logger.error(
+                f"GitHub 上传在 {max_upload_retries} 次重试后仍失败: {file_path}"
+            )
+            raise last_exception
 
         github_url = f"https://{self.config['github_pages_domain']}/{self.config['github_repo'].split('/')[1]}/clips/{filename}"
 
