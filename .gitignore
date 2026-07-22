@@ -13,8 +13,8 @@ htmlcov/
 
 # Local configuration and generated files
 .env
-config.py
-docker/config.py
+/config.py
+/docker/config.py
 uploads/
 
 # Editors and operating systems
