@@ -1,0 +1,32 @@
+[tools]
+python = "3.13.12"
+pdm = "latest"
+uv = "latest"
+
+[tasks.install]
+description = "Create the virtual environment and install locked dependencies"
+run = "uv sync --frozen"
+
+[tasks.lock]
+description = "Refresh both PDM and uv lock files"
+run = "pdm lock && uv lock"
+
+[tasks.dev]
+description = "Run the FastAPI development server"
+run = "uv run uvicorn run:app --host 0.0.0.0 --port ${WEB_CLIPPER_PORT:-65330} --reload"
+
+[tasks.start]
+description = "Run the FastAPI server"
+run = "uv run python run.py"
+
+[tasks.test]
+description = "Run the test suite"
+run = "uv run pytest"
+
+[tasks.lint]
+description = "Run Ruff checks"
+run = "uv run ruff check ."
+
+[tasks.format]
+description = "Format Python sources"
+run = "uv run ruff format ."

@@ -1,41 +1,32 @@
-# 基于镜像基础
-FROM python:3.10.12 as builder
+# syntax=docker/dockerfile:1.7
 
-# 设置工作目录
-WORKDIR /app
+FROM python:3.13-slim
 
-# 安装构建依赖
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
-# 复制依赖文件
-COPY requirements.txt .
-
-# 创建虚拟环境并安装依赖
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# 安装依赖，使用pip缓存
-RUN pip install --no-cache-dir -r requirements.txt --index-url https://mirrors.sustech.edu.cn/pypi/web/simple
-
-# 最终镜像
-FROM python:3.10.12
+LABEL maintainer="Banksy"
+LABEL description="Web Clipper FastAPI service"
 
 WORKDIR /app
 
-# 复制虚拟环境
-COPY --from=builder /opt/venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PATH="/app/.venv/bin:$PATH"
 
-# 设置 PYTHONPATH 环境变量
-ENV PYTHONPATH=/app
+COPY --from=ghcr.io/astral-sh/uv:0.11.29 /uv /uvx /bin/
 
-# 复制应用代码
-COPY . .
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project --no-dev
 
-# 暴露端口
+COPY app ./app
+COPY run.py main.py web_clipper.py ./
+
+RUN mkdir -p /app/uploads
+
 EXPOSE 65330
 
-# 运行应用
-CMD ["python", "main.py"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:65330/health', timeout=3)"]
+
+CMD ["uvicorn", "run:app", "--host", "0.0.0.0", "--port", "65330"]

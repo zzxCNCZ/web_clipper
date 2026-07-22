@@ -1,8 +1,8 @@
-from web_clipper import start_server
-from config import CONFIG
+"""Backward-compatible entry point; prefer ``python run.py``."""
+
+from run import app, settings
 
 if __name__ == "__main__":
-    start_server(
-        host=CONFIG.get('host', '0.0.0.0'),
-        port=CONFIG.get('port', 8000)
-    ) 
+    import uvicorn
+
+    uvicorn.run(app, host=settings.host, port=settings.port)

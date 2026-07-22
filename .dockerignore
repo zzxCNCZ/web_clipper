@@ -1,5 +1,13 @@
-uploads
-
+**/__pycache__
+**/*.pyc
+.env
+.git
+.pytest_cache
+.ruff_cache
+.venv
 config.py
+docker/config.py
+tests
+uploads
 
 docker/

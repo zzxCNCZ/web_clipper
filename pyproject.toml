@@ -1,0 +1,47 @@
+[project]
+name = "web-clipper"
+version = "0.2.0"
+description = "FastAPI service that archives web pages to GitHub Pages and Notion"
+authors = [
+    { name = "Banksy", email = "zhuang1994123@gmail.com" },
+]
+dependencies = [
+    "beautifulsoup4>=4.12.2",
+    "fastapi>=0.138.2",
+    "notion-client>=2.0.0",
+    "openai>=1.61.0",
+    "pygithub>=2.1.1",
+    "python-dotenv>=1.2.2",
+    "python-multipart>=0.0.32",
+    "python-telegram-bot>=20.6",
+    "requests>=2.31.0",
+    "slowapi>=0.1.9",
+    "uvicorn[standard]>=0.49.0",
+]
+requires-python = "==3.13.*"
+readme = "README.md"
+license = { text = "MIT" }
+
+[dependency-groups]
+dev = [
+    "httpx2>=0.1.0",
+    "pytest>=8.3.5",
+    "ruff>=0.11.0",
+]
+
+[tool.pdm]
+distribution = false
+resolution.strategy = ["inherit_metadata"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = ["One-Key-Blog.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
