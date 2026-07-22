@@ -4,10 +4,9 @@ services:
     image: web-clipper-server
     build:
       context: ..
+    network_mode: host
     env_file:
       - ../.env
-    ports:
-      - "65330:65330"
     volumes:
       - ../uploads:/app/uploads
     restart: unless-stopped

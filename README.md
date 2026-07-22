@@ -95,3 +95,7 @@ docker compose -f docker/docker-compose.yml up --build -d
 ```
 
 服务监听宿主机 `65330` 端口，临时上传目录挂载到项目的 `uploads/`。
+
+Compose 使用 `network_mode: host`。macOS/Windows 的 Docker Desktop 需要先在
+Settings → Resources → Network 中启用 `Enable host networking`；host 模式下无需配置
+`ports` 映射。
